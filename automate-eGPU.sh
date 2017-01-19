@@ -1,29 +1,29 @@
 #!/bin/sh
 #
-# Script (automate-eGPU.sh)
-# This script automates Nvidia and AMD eGPU setup on OS X.
+######################################################################################
+# automate-eGPU.sh 1.0.0 - Copyright (c) 2016, 2017
+# ------------------------------------------------------------------------------------
+# Authors:   Goalque [goalque@gmail.com] & FricoRico [ricardo@q42.nl]
+# Homepage:  https://github.com/goalque/automate-eGPU/
+# License:   https://github.com/goalque/automate-eGPU/blob/master/SCRIPT-LICENSE.txt
+# ===================================================================================
+# USAGE TERMS of automate-eGPU.sh
+# ====================================================================================
+# 1. You may use this script for personal use.
+# 2. You may continue development of this script at it's GitHub homepage.
+# 3. You may not redistribute this script from outside of it's GitHub homepage.
+# 4. You may not use this script, or portions thereof, for any commercial purposes.
+# 5. You may not modify Apple's copyrighted binary files from within this script
+#    as mandated on pg 4, sections "L. Open Source" & "M. No Reverse Engineering"
+#    of Apple's SLA at http://images.apple.com/legal/sla/docs/macOS1012.pdf 
+########################################################################################
 #
-# Version 0.9.8 - Copyright (c) 2015 by Goalque (goalque@gmail.com)
-#
-# Licensed under the terms of the MIT license
-#
-# - Native AMD support
-# - Detects your OS X product version and build version
-# - Automatic Nvidia web driver download and installation
-# - Automatic IOPCITunnelCompatible mods + Nvidia web driver mod
-# - Detects Thunderbolt connection
-# - Detects your Mac board-id and enables eGPU screen output
-# - Background services
-# - Automatic backups with rsync and uninstalling with [-uninstall]
-# - Detects GPU name by scraping device id from http://pci-ids.ucw.cz
-# - OpenCL benchmarking (https://github.com/krrishnarraj/clpeak)
-# - Possible to use Nvidia official driver for Kepler cards [-skipdriver]
-#
-#	Usage: 1) chmod +x automate-eGPU.sh
+# Usage:
+#          1) chmod +x automate-eGPU.sh
 #          2) sudo ./automate-eGPU.sh
 #          3) sudo ./automate-eGPU.sh -a		
 
-ver="0.9.8"
+ver="1.0.0"
 SED=$(if [ -x /usr/bin/sed ]; then echo /usr/bin/sed; else which sed; fi)
 logname="$(logname)"
 first_argument="$1"
@@ -56,11 +56,13 @@ startup_kext=""
 web_driver_url=""
 boot_args=""
 amd=0
-amd_x4000_codenames=(Bonaire Hawaii Pitcairn Tahiti Tonga Verde Fiji)
+amd_x4000_codenames=(Bonaire Hawaii Pitcairn Tahiti Tonga Verde)
+amd_x4100_codenames=(Baffin)
 amd_x3000_codenames=(Barts Caicos Cayman Cedar Cypress Juniper Lombok Redwood Turks)
-amd_controllers=(5000 6000 7000 8000 9000)
+amd_controllers=(5000 6000 7000 8000 9000 9500)
 config_board_ids=(42FD25EABCABB274 65CE76090165799A B809C3757DA9BB8D DB15BD556843C820 F60DEB81FF30ACF6 FA842E06C61E91C5)
 board_id=$(ioreg -c IOPlatformExpertDevice -d 2 | grep board-id | $SED "s/.*<\"\(.*\)\">.*/\1/")
+skipagdc=0
 
 function GenerateDaemonPlist()
 {
@@ -117,15 +119,16 @@ echo "$plist" > /Library/LaunchAgents/automate-eGPU-agent.plist
 function SetNVRAM()
 {
 nvram_data=`cat <<EOF
-U2FsdGVkX1/n7eQzux6Xi/aRqQ5Cf9LxOlbKNn/DkJqCNYY9Jn8Qtul3KNHMaFWK
-oxeTZzYf3/gNAydLamJNsiu+kspK6r3x/UJwemcdzb7LlKvYB1M79YptmIVdMHbm
-CfPqKJbxtLyA3oFZwUhppW34fm8PTyg8XQBVpNz2Ttog2Uki/C5dm1OQdTziHH1Y
-jyVBoXqu7kHeLOtwhXalBDzgIq6KyaxP8v3INYIKWLq4ZZHNCfIczjgjrR0mDSB+
-mI98X4XOyrxJLtUY3QEHZC+u1L9PRFZzYliPU9a5Rx/t0BMfFUaf605W46Rg/zuc
-INz60BT8k0r8/u7ft3kO62v5jX3JDtJCcqyORuukqRV7e6s8GREObk2VaBfHC1zY
-uT1Y5/WYwcR7sKE+2TS08bqGjB2Gp4+uaCJIBEMWfj4exJp6tuEXl/5ZmcBd8qiX
-9e6ZRIg3gfVc188ExhfsOLfoNE7NxgEm9meUe4+eRAKUxy+kdVWbPqCu97b3S/7b
-0q6Vbb5YeCFoj++Ouh80Nw==
+U2FsdGVkX19cOaLLbRX54zk1Jwi9WKu6R4AHUqRuRKYPbPunvDg1VfVw3L4XTH/A
+JNtIE8SlURhEBEmml13e9pwpvsLw0n3scP6RFrYZYwnbFKXWVmDk/ZAFGaB3HzDK
+UNQr+NVzgtVdVjooQyWrjaPZV22n9WdRIqIEL1fEArN7VAblWOMPomzhpblgjCPq
+VTMrektw0b05ACLSJ5dsD+geQQXfaf2py9mJTWBEH0iwcf3zz6p1WukP00IJe7co
+kvXby3NOHDLQ9N0Tqeg42kD5j3pNLg3XlOducbmVyfILqrbST2ToslHocICaRcnX
+Pv7ZmVk082CwEredA3MgnMpC2C6fu4l3m1l1l0Tv1JPAanN6lUP6BATNDAeeag6/
+i5j75ywQww7jPGa+Ba3m/QLjdhL4yIKjzn6xCQobT4pFUN0pXyjqaqZZUEWDUkgT
+FuZzUbYoB5IBqrsRWIb2VdlKuv7bMt8pEjFlrSzRp57bbiYVc7R6MYw56jN4Cnto
+WclPInXIaYifY6FPX3wJvO0h8fU4D0sTMD8X0EK2yL7MkM/BcaMBsLT3+9GKiceo
+b/Z4xw7wDfsTz5YgfKPggVK+CY1bdyAl4BdbW4CpZmvg/szCHAcBsMe+05q9LkUx
 EOF
 `
 echo "$nvram_data" > "$TMPDIR"nvram
@@ -158,8 +161,8 @@ function IOPCITunnelCompatibleCheck()
 	then
 		for controller in "${amd_controllers[@]}"
 		do
-			if [[ $(($major_version)) -eq 10 && $(($minor_version)) -eq 9 && "$controller" != "8000" && "$controller" != "9000" ]] \
-			|| [[ $(($major_version)) -eq 10 && $(($minor_version)) -gt 9 ]]
+			if [[ $(($major_version)) -eq 10 && $(($minor_version)) -eq 9 && "$controller" != "8000" && "$controller" != "9000" && "$controller" != "9500" ]] \
+			|| [[ $(($major_version)) -eq 10 && $(($minor_version)) -lt 12 && "$controller" != "9500" ]] || [[ $(($major_version)) -eq 10 && $(($minor_version)) -gt 11 ]]
 			then
    				[[ $(/usr/libexec/PlistBuddy -c "Print :IOKitPersonalities:Controller:IOPCITunnelCompatible" /System/Library/Extensions/AMD"$controller"Controller.kext/Contents/Info.plist 2>/dev/null) == "true" ]] && valid_count=$(($valid_count+1))
 			fi
@@ -170,6 +173,11 @@ function IOPCITunnelCompatibleCheck()
 		for codename in "${amd_x4000_codenames[@]}"
 		do
    			[[ $(/usr/libexec/PlistBuddy -c "Print :IOKitPersonalities:AMD"$codename"GraphicsAccelerator:IOPCITunnelCompatible" /System/Library/Extensions/AMDRadeonX4000.kext/Contents/Info.plist 2>/dev/null) == "true" ]] && valid_count=$(($valid_count+1))
+		done
+		
+		for codename in "${amd_x4100_codenames[@]}"
+		do
+   			[[ $(/usr/libexec/PlistBuddy -c "Print :IOKitPersonalities:AMD"$codename"GraphicsAccelerator:IOPCITunnelCompatible" /System/Library/Extensions/AMDRadeonX4100.kext/Contents/Info.plist 2>/dev/null) == "true" ]] && valid_count=$(($valid_count+1))
 		done
 
 		for codename in "${amd_x3000_codenames[@]}"
@@ -190,12 +198,6 @@ function IOPCITunnelCompatibleCheck()
 		else
 			iopci_valid=0
 		fi
-	fi
-	if [[ $iopci_valid == 1 ]]
-	then
-		echo "IOPCITunnelCompatible mods are valid."
-	else
-		echo "Missing IOPCITunnelCompatible keys."
 	fi
 }
 
@@ -251,6 +253,23 @@ function BackupKexts()
 	 "$app_support_path_backup"$build_version"/"
 }
 
+function RebuildCaches()
+{
+	echo "Rebuilding caches..."
+	if [[ $(test -f /System/Library/PrelinkedKernels/prelinkedkernel && echo 1) ]]
+	then
+		rm /System/Library/PrelinkedKernels/prelinkedkernel 2>/dev/null
+	fi
+	if [[ $(test -f /System/Library/Caches/com.apple.kext.caches/Startup/kernelcache && echo 1) ]]
+	then
+		rm /System/Library/Caches/com.apple.kext.caches/Startup/kernelcache 2>/dev/null
+	fi
+	touch /System/Library/Extensions
+	kextcache -q -update-volume /
+	touch /System/Library/Extensions
+	kextcache -system-caches
+}
+
 function Uninstall()
 {	
 	DeduceStartup
@@ -262,8 +281,7 @@ function Uninstall()
 
 		for controller in "${amd_controllers[@]}"
 		do
-			if [[ $(($major_version)) -eq 10 && $(($minor_version)) -eq 9 && "$controller" != "8000" && "$controller" != "9000" ]] \
-			|| [[ $(($major_version)) -eq 10 && $(($minor_version)) -gt 9 ]]
+			if [[ $(test -f "$app_support_path_backup"$build_version"/AMD"$controller"Controller.kext/" && echo 1) ]]
 			then
 				rsync -a --delete "$app_support_path_backup"$build_version"/AMD"$controller"Controller.kext/" /System/Library/Extensions/AMD"$controller"Controller.kext/
 			fi
@@ -273,6 +291,11 @@ function Uninstall()
 		rsync -a --delete "$app_support_path_backup"$build_version"/AMDSupport.kext/" /System/Library/Extensions/AMDSupport.kext/
 		rsync -a --delete "$app_support_path_backup"$build_version"/AMDRadeonX3000.kext/" /System/Library/Extensions/AMDRadeonX3000.kext/
 		rsync -a --delete "$app_support_path_backup"$build_version"/AMDRadeonX4000.kext/" /System/Library/Extensions/AMDRadeonX4000.kext/
+		
+		if [[ $(test -d "$app_support_path_backup"$build_version"/AMDRadeonX4100.kext/" && echo 1) ]]
+		then
+			rsync -a --delete "$app_support_path_backup"$build_version"/AMDRadeonX4100.kext/" /System/Library/Extensions/AMDRadeonX4100.kext/
+		fi
 	fi
 	
 	rm -rf "/Library/Application Support/Automate-eGPU"
@@ -287,7 +310,7 @@ function Uninstall()
 	nvram -d boot-args
 	nvram -d tbt-options
 	
-	touch /System/Library/Extensions
+	RebuildCaches
 	
 	echo "Automate-eGPU uninstall ready."
 	
@@ -301,8 +324,8 @@ function Uninstall()
 
 function SetIOPCIMatch()
 {	
-	iopci_match=$(/usr/libexec/PlistBuddy -c "Print :"$match_entry "$match_plist")
-	match_id="0x"$(printf $egpu_device_id"$egpu_vendor_id" | awk '{print toupper($0)}')
+	iopci_match=$(/usr/libexec/PlistBuddy -c "Print :"$match_entry "$match_plist" | awk '{print tolower($0)}')
+	match_id="0x"$(printf $egpu_device_id"$egpu_vendor_id" | awk '{print tolower($0)}')
 	if [[ "$iopci_match" =~ \&0x ]]
 	then
 		/usr/libexec/PlistBuddy -c "Set :"$match_entry" "$match_id "$match_plist" 2>/dev/null
@@ -354,7 +377,10 @@ function SetIOPCITunnelCompatible()
 			then
 				controller_found=1
 				break
-			fi	
+			elif [[ "$controller" == "9500" ]] && [[ "$egpu_names" =~ Baffin|Ellesmere ]]
+			then
+				controller_found=1
+			fi		
 		done
 		
 		if [[ $controller_found == 1 ]]
@@ -370,6 +396,20 @@ function SetIOPCITunnelCompatible()
 		
 		/usr/libexec/PlistBuddy -c "Add :IOKitPersonalities:ATI\ Support:IOPCITunnelCompatible bool true" /System/Library/Extensions/AMDSupport.kext/Contents/Info.plist 2>/dev/null
 	
+		for codename in "${amd_x4100_codenames[@]}"
+		do
+			if [[ "$egpu_names" =~ "$codename" ]] || [[ "$egpu_names" =~ "Fiji" && "$codename" == "Baffin" ]] || [[ "$egpu_names" =~ "Ellesmere" && "$codename" == "Baffin" ]]
+			then
+				match_plist="/System/Library/Extensions/AMDRadeonX4100.kext/Contents/Info.plist"
+				/usr/libexec/PlistBuddy -c "Add :IOKitPersonalities:AMD"$codename"GraphicsAccelerator:IOPCITunnelCompatible bool true" "$match_plist" 2>/dev/null
+	
+				match_entry="IOKitPersonalities:AMD"$codename"GraphicsAccelerator:IOPCIMatch"
+				SetIOPCIMatch
+				accelerator_found=1
+				break
+			fi
+		done
+		
 		for codename in "${amd_x4000_codenames[@]}"
 		do
 			if [[ "$egpu_names" =~ "$codename" ]]
@@ -384,19 +424,6 @@ function SetIOPCITunnelCompatible()
 			fi
 		done
 		
-		if [[ $accelerator_found == 0 ]]
-		then
-			for codename in "${amd_x3000_codenames[@]}"
-			do
-				match_plist="/System/Library/Extensions/AMDRadeonX3000.kext/Contents/Info.plist"
-				/usr/libexec/PlistBuddy -c "Add :IOKitPersonalities:AMD"$codename"GraphicsAccelerator:IOPCITunnelCompatible bool true" "$match_plist" 2>/dev/null
-
-				match_entry="IOKitPersonalities:AMD"$codename"GraphicsAccelerator:IOPCIMatch"
-				SetIOPCIMatch
-				accelerator_found=1
-				break
-			done
-		fi
 		
 		if [[ $accelerator_found == 0 ]]
 		then
@@ -462,33 +489,8 @@ function GetDownloadURL()
 	then
 		echo "No web driver yet available for build ["$build_version"]."
 		test_path=$app_support_path_nvidia"WebDriver-"$previous_installed_web_driver_version".pkg"
-			
-		if [[ $(test -f "$test_path" && echo 1) ]]
-		then
-			echo "This script can reinstall the package ["$previous_installed_web_driver_version"] (y/n)?"
-			read answer
-			if echo "$answer" | grep -iq "^y"
-			then
-				reinstall=1
-				break
-			else
-				echo "Ok."
-				exit
-			fi
-		elif [[ "$previous_installed_web_driver_version" != "" ]]
-		then
-			echo "This script can download and modify the older package ["$previous_installed_web_driver_version"] (y/n)?"
-			read answer
-			if echo "$answer" | grep -iq "^y"
-			then
-				break
-			else
-				echo "Ok."
-				exit
-			fi
-		else
-			exit
-		fi
+		exit
+		
 	elif [[ $running_official == 1 ]] && [[ "$download_version" != "" ]] && [[ "$previous_installed_web_driver_version" != "" ]] && [[ "$download_version" == "$previous_installed_web_driver_version" ]]
 	then
 		test_path=$app_support_path_nvidia"WebDriver-"$previous_installed_web_driver_version".pkg"
@@ -513,87 +515,11 @@ function DoYouWantToDownloadThisDriver()
 	echo "Do you want to download this driver (y/n)?"
 	read answer
 	if echo "$answer" | grep -iq "^y" ;then
-		curl -o $TMPDIR"WebDriver-"$download_version".pkg" "http://us.download.nvidia.com/Mac/Quadro_Certified/"$download_version"/WebDriver-"$download_version".pkg"
+		curl -k -o $TMPDIR"WebDriver-"$download_version".pkg" $download_url
 		echo "Driver downloaded."
 	else
 		echo "Ok."
 		exit
-	fi
-}
-
-function GetDriverList()
-{
-	driver_list_available=0
-	list0=$(curl -s -H "X-Requested-With: XMLHttpRequest" "http://www.nvidia.com/Download/processFind.aspx?psid=73&pfid=696&osid="$os_id"&lid=1&whql=&lang=en-us&ctk=0")
-	list="$(echo "$list0 "| grep 'New in Release')"
-					
-	value1="$(echo "$list "| $SED -E 's/.*in Release ([0-9]+\.[0-9]+\.[a-z0-9]+)\:.* [0-9]+\.[0-9]+\.[0-9]+ \([A-Z0-9]+\).*/\1/')"
-	value2="$(echo "$list "| $SED -E 's/.*in Release [0-9]+\.[0-9]+\.[a-z0-9]+\:.* ([0-9]+\.[0-9]+\.[0-9]+) \([A-Z0-9]+\).*/\1/')"
-	value3="$(echo "$list "| $SED -E 's/.*in Release ([0-9]+\.[0-9]+\.[a-z0-9]+)\:.* [0-9]+\.[0-9]+\.[0-9]+ \(([A-Z0-9]+)\).*/\1/')"
-	
-	value4="$(echo "$list0 "| perl -ne 'print if s/.*([0-9]{3}\.[0-9]{2}\.[a-z0-9]{5}).*/\1/')"
-	
-	if [[ $value1 =~ (^[0-9]+\.[0-9]+\.[a-z0-9]+)+ ]] && [[ $value2 =~ (^[0-9]+\.[0-9]+\.[a-z0-9]+)+ ]] && [[ $value3 =~ (^[0-9]+\.[0-9]+\.[a-z0-9]+)+ ]]
-	then
-		driver_list_available=1
-		list=$(echo "$list" | $SED -E 's/.*in Release ([0-9]+\.[0-9]+\.[a-z0-9]+)\:.* ([0-9]+\.[0-9]+\.[0-9]+) \(([A-Z0-9]+)\).*/\1 for \2 (\3)/')
-		download_version=$(echo "$list" | $SED -n 1p | $SED -E "s/^([0-9]+\.[0-9]+\.[0-9a-z]+).*/\1/")
-	elif [[ $value4 =~ ^[0-9]+\.[0-9]+\.[a-z0-9]+ ]]
-	then
-		list=$(echo $value4 "for" $product_version "("$build_version")")
-		download_version=$value4
-	else
-		echo "Driver not found. Nvidia may have changed their web driver search service."
-		exit
-	fi
-	
-	echo "Found the following matching drivers:"
-	echo "-------------------------------------"
-
-	echo "$list"
-	
-	echo "-------------------------------------"
-	echo "Newest driver:\n\n" \
-	"http://us.download.nvidia.com/Mac/Quadro_Certified/"$download_version"/WebDriver-"$download_version".pkg"
-	DoYouWantToDownloadThisDriver
-}
-
-function ScrapeOperatingSystemId()
-{
-	os_id=$(curl -s -H "X-Requested-With: XMLHttpRequest" "http://www.nvidia.com/Download/API/lookupValueSearch.aspx?TypeID=4&ParentID=73" \
-				| perl -pe 's/[\x0D]//g' \
-				| $SED -E "s/.*<Name>Mac OS X [A-Za-z ]+ "$product_version$"<\/Name><Value>([0-9]+)<\/Value><\/LookupValue>.*/\1/")
-
-	if [[ ! $os_id =~ ^[-+]?[0-9]+$ ]]
-	then
-		echo "No web driver found for OS X "$product_version"."
-
-		if [[ ! "$previous_version_to_look_for" == "[not found]" ]]
-		then
-			echo "Would you like search the latest available package for ["$previous_version_to_look_for"] (y/n)?"
-			read answer
-			if echo "$answer" | grep -iq "^y"
-			then
-		
-			os_id=$(curl -s -H "X-Requested-With: XMLHttpRequest" "http://www.nvidia.com/Download/API/lookupValueSearch.aspx?TypeID=4&ParentID=73" \
-				| perl -pe 's/[\x0D]//g' \
-				| $SED -E "s/.*<Name>Mac OS X [A-Za-z ]+ "$previous_version_to_look_for"<\/Name><Value>([0-9]+)<\/Value><\/LookupValue>.*/\1/")
-
-			if [[ ! $os_id =~ ^[-+]?[0-9]+$ ]]
-			then
-				echo "Operating system id not found. Nvidia may have changed their web driver search service."
-				exit
-			else
-				echo "Operating system id found."
-				break
-			fi
-			else
-				echo "Ok."
-				exit
-			fi
-		fi
-	else
-		echo "Operating system id found."
 	fi
 }
 
@@ -607,7 +533,7 @@ function DeduceBootArgs()
 			boot_args="kext-dev-mode=1"
 		fi
 	else
-		if [[ $(($major_version)) -eq 10 && $(($minor_version)) -eq 11 ]]
+		if [[ $(($major_version)) -eq 10 && $(($minor_version)) -gt 10 ]]
 		then
 			if [[ $running_official == 0 ]]
 			then
@@ -627,7 +553,8 @@ function DeduceBootArgs()
 function MakeNVRAM()
 {
 	nvram=$(openssl aes-256-cbc -d -in "$TMPDIR"nvram -a -pass pass:$(echo "$ver" | rev)); openssl enc -base64 -d \
-	<<< $($SED -n '10p' <<< "$nvram" | $SED -E 's/.*<data>(.*)<\/data>.*/\1/'); echo "$nvram" | $SED '9,10d' \
+	<<< $($SED -n '10p' <<< "$nvram" | $SED -E 's/.*<data>(.*)<\/data>.*/\1/'); \
+	openssl enc -base64 -d <<< $(sed -n '12p' <<< "$nvram" | sed -E 's/.*<data>(.*)<\/data>.*/\1/'); echo "$nvram" | $SED '9,12d' \
 	| $SED '6 s/<data><\/data>/<string>'"$boot_args"'<\/string>/' > "$TMPDIR"nvram; nvram -xf "$TMPDIR"nvram
 }
 
@@ -722,7 +649,7 @@ function DeduceStartup()
 	minor_version="$(echo "$product_version" | $SED -E 's/([0-9]+)\.([0-9]+)\.{0,1}([0-9]*).*/\2/g')"
 	maintenance_version="$(echo "$product_version" | $SED -E 's/([0-9]+)\.([0-9]+)\.{0,1}([0-9]*).*/\3/g')"
 	
-	if [[ $((major_version)) -eq 10 && $(($minor_version)) -eq 11 ]] && [[ ! $(nvram csr-active-config | awk '/csr-active-config/ {print substr ($0, index ($0,$2))}') == "w%00%00%00" ]]
+	if [[ $((major_version)) -eq 10 && $(($minor_version)) -gt 10 ]] && [[ ! $(nvram csr-active-config | awk '/csr-active-config/ {print substr ($0, index ($0,$2))}') == "w%00%00%00" ]]
 	then
 		echo "Boot into recovery partition and type: csrutil disable"
 		exit
@@ -751,9 +678,9 @@ function DeduceStartup()
 		then
 			running_official=1
 		fi
-	elif [[ $(($major_version)) -eq 10 && $(($minor_version)) -eq 11 ]]
+	elif [[ $(($major_version)) -eq 10 && $(($minor_version)) -gt 10 ]]
 	then
-		if [[ "$first_argument" == "-url" || "$first_argument" == "" ]]
+		if [[ "$first_argument" == "-url" || "$first_argument" == "" ||  "$first_argument" == "-skip-agdc" ]]
 		then
 			startup_kext="NVDAStartupWeb.kext"
 		fi
@@ -763,7 +690,7 @@ function DeduceStartup()
 			nvda_startup_web_found=1
 		else
 			running_official=1
-			if [[ "$first_argument" == "-skipdriver" ]]
+			if [[ "$first_argument" == "-skip-web-driver" ]]
 			then
 				startup_kext="NVDAStartup.kext"
 			fi
@@ -773,7 +700,7 @@ function DeduceStartup()
 
 function Main()
 {	
-	echo "-------------------------------------------------------"
+	echo "*****************************************"
 	echo "\033[1mDetected eGPU\033[0m\n" $egpu_name
 	echo "\033[1mCurrent OS X\033[0m\n" $product_version $build_version
 	echo "\033[1mPrevious OS X\033[0m\n" $previous_product_and_build_version
@@ -782,16 +709,6 @@ function Main()
 	volume_name=$(diskutil info / | awk '/Volume Name/ {print substr ($0, index ($0,$3))}')
 	
 	GeneralChecks
-	
-	if [[ $amd == 0 ]]
-	then
-		if [[ $board_id_exists == 0 ]]
-		then
-			echo "Mac board-id not found."
-		else
-			echo "Mac board-id found."
-		fi
-	fi
 	
 	if [[ $skipdriver == 0 && $amd == 0 ]] || [[ "$web_driver_url" != "" ]]
 	then
@@ -803,14 +720,7 @@ function Main()
 		
 		if [[ $reinstall == 0 ]]
 		then
-			if [[ "$web_driver_url" == "" ]] && [[ "$download_url" == "" || "$download_version" == "" ]]
-			then
-				ScrapeOperatingSystemId
-				if [[ $os_id =~ ^[-+]?[0-9]+$ ]]
-				then
-					GetDriverList
-				fi
-			elif [[ ! "$web_driver_url" == "" ]]
+			if [[ ! "$web_driver_url" == "" ]]
 			then
 				curl -o $TMPDIR"WebDriver-"$download_version".pkg" "$web_driver_url"
 			fi
@@ -850,7 +760,10 @@ function Main()
 	
 	if [[ $amd == 0 && $board_id_exists == 0 ]]
 	then
-		AddBoardId
+		if [[ $skipagdc == 0 ]]
+		then
+			AddBoardId
+		fi
 	fi
 	
 	if [[ $amd == 0 ]]
@@ -863,7 +776,6 @@ function Main()
 			fi
 		done
 	fi
-	
 	
 	if [[ $amd == 0 ]]
 	then
@@ -894,12 +806,12 @@ function Main()
 		fi
 	fi
 	
-	touch /System/Library/Extensions
+	RebuildCaches
 	
 	echo "All ready. Please restart the Mac."
 }
 
-if [[ "$first_argument" == "" || "$first_argument" == "-skipdriver" || "$first_argument" == "-url" ]]
+if [[ "$first_argument" == "" || "$first_argument" == "-skip-web-driver" || "$first_argument" == "-url"  || "$first_argument" == "-skip-agdc" ]]
 then
 	[ "$(id -u)" != "0" ] && echo "You must run this script with sudo." && exit
 	
@@ -920,6 +832,11 @@ then
  		echo "Hot-plug the Thunderbolt cable and run the script again."
  		exit
  	fi
+ 	
+ 	if [[ "$second_argument" == "-skip-agdc" ]]
+	then
+		skipagdc=1
+	fi
 	
 	if [[ "$first_argument" == "-url" ]]
 	then
@@ -944,6 +861,11 @@ then
 			echo "URL doesn't exist."
 			exit
 		fi
+		
+		if [[ "$second_argument" == "-skip-agdc" ]]
+		then
+			skipagdc=1
+		fi
 	fi
 
 	if [[ $(echo ${#egpu_device_id}) > 4 ]]
@@ -959,11 +881,21 @@ then
 
 	MakeSupportPaths
 	
-	if [[ "$first_argument" == "-skipdriver" ]]
+	if [[ "$first_argument" == "-skip-web-driver" ]]
 	then
 		skipdriver=1
+		
+		if [[ "$second_argument" == "-skip-agdc" ]]
+		then
+			skipagdc=1
+		fi
 	else
 		su "$(logname)" -c 'launchctl unload /Library/LaunchAgents/automate-eGPU-agent.plist' 2>/dev/null
+	fi
+	
+	if [[ "$first_argument" == "-skip-agdc" ]]
+	then
+		skipagdc=1
 	fi
 	
 	previous_product_and_build_version="$(perl -ne 'print if s/.*com\.apple\.pkg\.update\.os\.([0-9]+\.[0-9]+\.[0-9]+)\.((?!'"$build_version"')[^\..]*)\.{0,1}.*<\/string>$/\1 \2/' \
@@ -1074,7 +1006,8 @@ then
 	DetectGPU
 	
 	if [[ $(echo ${#egpu_device_id}) > 4 ]] || [[ "$dgpu_device_id0" != "" ]] || [[ "$dgpu_device_id1" != "" ]] || [[ "$dgpu_device_id2" != "" ]] || \
-	   [[ "$board_id" == "Mac-E43C1C25D4880AD6" ]] || [[ "$board_id" == "Mac-06F11FD93F0323C5" ]] || [[ "$board_id" == "Mac-937CB26E2E02BB01" ]]
+	   [[ "$board_id" == "Mac-E43C1C25D4880AD6" ]] || [[ "$board_id" == "Mac-06F11FD93F0323C5" ]] || [[ "$board_id" == "Mac-937CB26E2E02BB01" ]] || \
+	   [[ "$egpu_names" =~ "Fiji" ]] || [[ "$egpu_names" =~ "Ellesmere" ]]
 	then
 		GenerateDaemonPlist
 		su root -c 'launchctl load -F /Library/LaunchDaemons/automate-eGPU-daemon.plist'

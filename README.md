@@ -1,4 +1,31 @@
-#Automate-eGPU.sh#
+***
+Why did I remove the links to T|I?
+
+Why my name was changed to euqlaog?
+
+No idea why I and other long term T|I users were banned.
+
+Where is Nando4?
+
+See: https://egpu.io/nando4-ti-ban/
+***
+#Automate-eGPU EFI#
+
+I’ve been working on a completely new application - eGPU boot manager for Mac computers. Installation script is not required as with rEFInd which invokes bless for the changing of the default boot partition. Settings can be done within the app.
+
+You can download the demo version here:
+
+https://github.com/goalque/automate-eGPU/releases/download/v0.0.1-demo/bootx64.efi
+
+#Automate-eGPU.sh is reborn with AMD Polaris & Fiji support for macOS#
+
+https://egpu.io/forums/mac-setup/automate-egpu-sh-is-reborn-with-amd-polaris-fiji-support-for-macos/#post-1487
+
+I've ceased development of this script in favour of my EFI app.
+
+Please do not release anything under the MIT license (v0.9.8), it would be VOID under the Apple’s SLA.
+
+http://images.apple.com/legal/sla/docs/macOS1012.pdf
 
 This script automates Nvidia and AMD eGPU setup on OS X.
 <table>
@@ -16,11 +43,6 @@ This script automates Nvidia and AMD eGPU setup on OS X.
 <li>Detects GPU name by scraping device id from http://pci-ids.ucw.cz</li>
 <li>OpenCL benchmarking</li>
 </ul>
-</td>
-<td width="40%" valign="top">
-<sub>
-<b>WARNING!</b> I’ve observed references to my script where one unnamed and verbally talented buddy has posted untruths, claiming that I have copied a piece of one coder’s work within 24 hours. In fact, I sent my own, detailed ioreg output of Mavericks builds and board-id list mentions within about half an hour when a T|I member told me about the purchase of coder’s app. Before that, I wasn’t aware of this purchase. Never got ioreg contents from coder's customer, never used such an app and never requested information about it. My original discovery (Mavericks kexts comparison) happened months earlier. There is a thread about this, reviewed by T|I admin, including my private messages - no evidence found of any IP theft accusations.
-</sub>
 </td>
 </tr>
 </table>
@@ -46,7 +68,10 @@ sudo ./automate-eGPU.sh
 <td>-clpeak</td><td>OpenCL performance test (http://github.com/krrishnarraj/clpeak)</td>
 </tr>
 <tr>
-<td>-skipdriver</td><td>Skip Nvidia Web driver installation (for Kepler cards)</td>
+<td>-skip-web-driver</td><td>Skip Nvidia Web driver installation (for Kepler cards)</td>
+</tr>
+<tr>
+<td>-skip-agdc</td><td>Skip AddBoardId() function</td>
 </tr>
 <tr>
 <td>-uninstall</td><td>Restore original kexts, unload services and delete application support files</td>
@@ -64,7 +89,7 @@ curl -o ~/Desktop/metaltest.swift https://raw.githubusercontent.com/goalque/auto
 
 cd ~/Desktop
 
-xcrun swiftc -o metaltest metaltest.swift
+swiftc -sdk $(xcrun --show-sdk-path) -target x86_64-apple-macosx10.11 -o metaltest metaltest.swift
 
 ./metaltest
 ```
@@ -74,6 +99,27 @@ https://github.com/jrprice/NBody-Metal
 ![](http://imgur.com/2QY14yH.png)
 
 ![](http://i.imgur.com/C34UhKO.png)
+
+##What’s new in 1.0.0##
+
+* A new method for rebuilding cache files
+* AMD Polaris and Fiji support (limited CUs)
+* -skip-agdc option
+* -skipdriver renamed to -skip-web-driver
+* Removed secondary data scraping methods
+
+Version 1.0.0 is released with new licensing:
+
+https://github.com/goalque/automate-eGPU/blob/master/SCRIPT-LICENSE.txt
+
+##What’s new in 0.9.9##
+
+Version 0.9.9 is released with new licensing:
+https://github.com/goalque/automate-eGPU/blob/master/SCRIPT-LICENSE.txt
+
+* ~~Native support (experimental) for R9 Nano and RX 480 with a Baffin personality (just remember to turn on -a mode).~~
+
+* Nvidia web driver support (experimental) for macOS Sierra beta builds
 
 ##What's new in 0.9.8##
 
@@ -206,15 +252,5 @@ clCreateKernel (-46)
 ```
 
 Thanks to Netstor for testing NA211TB, especially with the Late 2013 Mac Pro.
-
-Thanks to Tech|Inferno forum and Nando’s up-to-date eGPU Implementation Hub, where you can choose the right hardware for you needs:
-
-https://www.techinferno.com/index.php?/forums/topic/8919-implementations-hub-tb-ec-mpcie/#Thunderbolt
-
-AKiTiO Thunder2 is recommended with Maxwell Nvidia cards or older AMDs. NA211TB is stable with AMD R9 series.
-
-Please report issues via GitHub or in the Tech|Inferno thread:
-
-http://forum.techinferno.com/mac-os-x-discussion/10289-script-automating-installation-egpu-os-x-inc-display-output.html
 
 
